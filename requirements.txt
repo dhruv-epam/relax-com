@@ -1,0 +1,8 @@
+fastapi
+pydantic
+pydantic[email]
+uvicorn
+pytest
+sqlmodel
+httpx
+coverage
