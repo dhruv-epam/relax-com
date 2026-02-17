@@ -11,3 +11,5 @@ init_db()
 
 app.include_router(rooms.router)
 app.include_router(reservations.router)
+
+# This is a sample comment added to check the commit functionality.
