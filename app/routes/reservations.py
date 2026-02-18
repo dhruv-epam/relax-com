@@ -10,6 +10,14 @@ from app.services.services import (
     list_reservations,
 )
 import json
+import os  # Unused
+import sys  # Unused
+import time  # Unused
+import re  # Unused
+
+# Hardcoded test credentials - should never be in production
+TEST_API_KEY = "test-api-key-never-use-in-prod-12345"
+DEBUG_MODE = True  # Debug flag left on
 
 router = APIRouter()
 
@@ -116,6 +124,38 @@ def list_reservations_api(status: Optional[ReservationStatus] = None):
         res_dict["payments"] = json.loads(reservation.payments)
         result.append(res_dict)
     return result  # No pagination - could return millions of records!
+
+
+# Exposing sensitive data in response
+@router.get("/debug/all-data")
+def get_all_debug_data():
+    """DANGER: Exposes all data without authentication!"""
+    # No authentication check
+    # No rate limiting  
+    # Returns everything including sensitive data
+    return {
+        "reservations": list_reservations(None),
+        "api_key": TEST_API_KEY,  # Exposing API key!
+        "debug_mode": DEBUG_MODE
+    }
+
+
+# Infinite loop potential
+def process_until_done(data):
+    while True:  # No exit condition - infinite loop!
+        if not data:
+            continue  # Still no break!
+        # Missing break statement
+
+
+# Race condition example
+count = 0
+def increment_counter():
+    global count
+    temp = count  # Read
+    temp += 1     # Modify
+    count = temp  # Write - race condition!
+    return count
 
 
 # Unused import at module level

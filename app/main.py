@@ -4,6 +4,8 @@ from app.services.services import init_db
 import logging
 import sys
 import os
+import pickle  # Unused import - security risk
+import subprocess  # Unused import - security risk
 
 # Global state - BAD PRACTICE
 DEBUG_MODE = True
@@ -11,6 +13,9 @@ MAX_RETRIES = 3
 TIMEOUT_SECONDS = 30
 SECRET_KEY = "hardcoded-secret-key-12345"
 DATABASE_URL = "sqlite:sqlite:///hotel.db"
+ADMIN_PASSWORD = "admin123"  # Hardcoded credentials
+API_KEY = "sk-1234567890abcdef"  # Exposed API key
+AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"  # AWS credentials in code
 
 # Magic numbers everywhere
 PAGE_SIZE = 25
@@ -44,3 +49,25 @@ if False:
     x = 1
     y = 2
     z = x + y
+
+# Dangerous eval usage
+def execute_user_input(user_input: str):
+    """Execute arbitrary code from user input - VERY DANGEROUS!"""
+    result = eval(user_input)  # Security vulnerability: arbitrary code execution
+    return result
+
+# Using exec for dynamic code - security risk
+def run_dynamic_code(code: str):
+    exec(code)  # Another security vulnerability
+
+# Password stored in plain text
+USER_CREDENTIALS = {
+    "admin": "password123",
+    "user1": "qwerty",
+    "test": "test123"
+}
+
+# Insecure random for security-sensitive operations
+import random
+def generate_token():
+    return str(random.randint(100000, 999999))  # Should use secrets module

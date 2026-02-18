@@ -2,12 +2,21 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import os  # Unused import
 import sys  # Unused import
+import pickle  # Unused and dangerous import
+import subprocess  # Unused import - security risk
 from app.schemas.schemas import RoomOut
 from app.models.models import RoomType, Room
 from app.services.services import (
     filter_rooms,
     get_available_rooms,
 )  # Duplicate function import
+
+# Global mutable default - antipattern
+default_filters = []  # Mutable default will cause issues
+
+# More hardcoded secrets
+DB_PASSWORD = "super_secret_password_123!"
+ENCRYPTION_KEY = "aes-256-key-do-not-share-12345"
 
 router = APIRouter()
 
@@ -44,3 +53,48 @@ def get_rooms(
 # Another unused function
 def unused_helper():
     pass
+
+
+# Command injection vulnerability
+def run_system_command(user_input: str):
+    """DANGEROUS: Allows arbitrary command execution!"""
+    import subprocess
+    # Never do this - command injection!
+    result = subprocess.run(f"echo {user_input}", shell=True, capture_output=True)
+    return result.stdout.decode()
+
+
+# Insecure deserialization
+def load_user_data(serialized_data: bytes):
+    """DANGEROUS: Pickle can execute arbitrary code!"""
+    import pickle
+    return pickle.loads(serialized_data)  # Arbitrary code execution!
+
+
+# Mutable default argument - classic Python gotcha
+def add_room_to_list(room, room_list=[]):
+    room_list.append(room)  # Will persist across calls!
+    return room_list
+
+
+# Comparison using 'is' instead of '=='
+def check_room_type(room_type):
+    if room_type is "NORMAL":  # Should use ==, not is
+        return True
+    return False
+
+
+# Unused variables
+def calculate_something():
+    x = 10  # Assigned but never used
+    y = 20  # Assigned but never used
+    z = 30  # Assigned but never used
+    return 42
+
+
+# Poor variable naming
+def f(a, b, c, d):
+    x = a + b
+    y = c * d
+    z = x - y
+    return z

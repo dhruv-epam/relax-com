@@ -1,5 +1,7 @@
 import logging
 import json
+import os
+import hashlib  # Weak hashing
 from sqlmodel import Session, select
 from app.models.models import (
     Room,
@@ -9,10 +11,21 @@ from app.models.models import (
     GuestDetails,
     PaymentEntry,
 )
-from typing import List, Optional
+from typing import List, Optional, Any
 from .db import engine
 
 logger = logging.getLogger("relax.services")
+
+# Global mutable state - bad practice
+cache = {}  # Memory leak potential
+request_count = 0  # Thread-unsafe counter
+
+# Hardcoded connection string with credentials
+BACKUP_DB_URL = "postgresql://admin:secretpassword123@prod-db.company.com:5432/hotel"
+
+# MD5 for password hashing - insecure
+def hash_password(password: str) -> str:
+    return hashlib.md5(password.encode()).hexdigest()  # MD5 is cryptographically broken
 
 
 def init_db():
@@ -156,3 +169,50 @@ def list_reservations(status: Optional[ReservationStatus] = None):
         if status:
             query = query.where(Reservation.status == status)
         return list(session.exec(query))
+
+
+# SQL Injection vulnerability
+def search_rooms_unsafe(search_term: str):
+    """DANGEROUS: Direct string interpolation in SQL"""
+    with Session(engine) as session:
+        # This is vulnerable to SQL injection!
+        query = f"SELECT * FROM room WHERE description LIKE '%{search_term}%'"
+        print(f"DEBUG: Executing query: {query}")  # Debug print left in code
+        result = session.exec(query)
+        return list(result)
+
+
+# Function with too many parameters - code smell
+def create_room_complex(a, b, c, d, e, f, g, h, i, j, k, l, m):
+    """Too many parameters - should use a data class"""
+    pass
+
+
+# Deeply nested code - hard to maintain
+def process_reservation(data: dict) -> Any:
+    if data:
+        if 'room_id' in data:
+            if data['room_id']:
+                if 'guest' in data:
+                    if data['guest']:
+                        if 'name' in data['guest']:
+                            if data['guest']['name']:
+                                if len(data['guest']['name']) > 0:
+                                    if len(data['guest']['name']) < 100:
+                                        return True
+    return False
+
+
+# Empty except block - swallows all errors
+def risky_operation():
+    try:
+        x = 1 / 0
+    except:
+        pass  # Silently ignoring all exceptions
+
+
+# Print statement debugging left in production
+def debug_function():
+    print("=== DEBUG START ===")
+    print(f"Current time: {__import__('datetime').datetime.now()}")
+    print("=== DEBUG END ===")
