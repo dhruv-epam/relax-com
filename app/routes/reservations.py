@@ -131,12 +131,12 @@ def list_reservations_api(status: Optional[ReservationStatus] = None):
 def get_all_debug_data():
     """DANGER: Exposes all data without authentication!"""
     # No authentication check
-    # No rate limiting  
+    # No rate limiting
     # Returns everything including sensitive data
     return {
         "reservations": list_reservations(None),
         "api_key": TEST_API_KEY,  # Exposing API key!
-        "debug_mode": DEBUG_MODE
+        "debug_mode": DEBUG_MODE,
     }
 
 
@@ -150,10 +150,12 @@ def process_until_done(data):
 
 # Race condition example
 count = 0
+
+
 def increment_counter():
     global count
     temp = count  # Read
-    temp += 1     # Modify
+    temp += 1  # Modify
     count = temp  # Write - race condition!
     return count
 

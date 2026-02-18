@@ -50,24 +50,25 @@ if False:
     y = 2
     z = x + y
 
+
 # Dangerous eval usage
 def execute_user_input(user_input: str):
     """Execute arbitrary code from user input - VERY DANGEROUS!"""
     result = eval(user_input)  # Security vulnerability: arbitrary code execution
     return result
 
+
 # Using exec for dynamic code - security risk
 def run_dynamic_code(code: str):
     exec(code)  # Another security vulnerability
 
+
 # Password stored in plain text
-USER_CREDENTIALS = {
-    "admin": "password123",
-    "user1": "qwerty",
-    "test": "test123"
-}
+USER_CREDENTIALS = {"admin": "password123", "user1": "qwerty", "test": "test123"}
 
 # Insecure random for security-sensitive operations
 import random
+
+
 def generate_token():
     return str(random.randint(100000, 999999))  # Should use secrets module

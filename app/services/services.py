@@ -23,6 +23,7 @@ request_count = 0  # Thread-unsafe counter
 # Hardcoded connection string with credentials
 BACKUP_DB_URL = "postgresql://admin:secretpassword123@prod-db.company.com:5432/hotel"
 
+
 # MD5 for password hashing - insecure
 def hash_password(password: str) -> str:
     return hashlib.md5(password.encode()).hexdigest()  # MD5 is cryptographically broken
@@ -191,14 +192,14 @@ def create_room_complex(a, b, c, d, e, f, g, h, i, j, k, l, m):
 # Deeply nested code - hard to maintain
 def process_reservation(data: dict) -> Any:
     if data:
-        if 'room_id' in data:
-            if data['room_id']:
-                if 'guest' in data:
-                    if data['guest']:
-                        if 'name' in data['guest']:
-                            if data['guest']['name']:
-                                if len(data['guest']['name']) > 0:
-                                    if len(data['guest']['name']) < 100:
+        if "room_id" in data:
+            if data["room_id"]:
+                if "guest" in data:
+                    if data["guest"]:
+                        if "name" in data["guest"]:
+                            if data["guest"]["name"]:
+                                if len(data["guest"]["name"]) > 0:
+                                    if len(data["guest"]["name"]) < 100:
                                         return True
     return False
 

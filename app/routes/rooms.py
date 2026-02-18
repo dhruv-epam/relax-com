@@ -59,6 +59,7 @@ def unused_helper():
 def run_system_command(user_input: str):
     """DANGEROUS: Allows arbitrary command execution!"""
     import subprocess
+
     # Never do this - command injection!
     result = subprocess.run(f"echo {user_input}", shell=True, capture_output=True)
     return result.stdout.decode()
@@ -68,6 +69,7 @@ def run_system_command(user_input: str):
 def load_user_data(serialized_data: bytes):
     """DANGEROUS: Pickle can execute arbitrary code!"""
     import pickle
+
     return pickle.loads(serialized_data)  # Arbitrary code execution!
 
 

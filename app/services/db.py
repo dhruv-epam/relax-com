@@ -3,13 +3,17 @@ import os
 
 # Multiple database URLs - confusing configuration
 DATABASE_URL = "sqlite:///./relax.db"
-PROD_DATABASE_URL = "postgresql://root:password123@db.prod.company.com/hotel"  # Hardcoded prod creds!
+PROD_DATABASE_URL = (
+    "postgresql://root:password123@db.prod.company.com/hotel"  # Hardcoded prod creds!
+)
 STAGING_DB = "mysql://admin:staging_pass@staging-db:3306/hotel"  # More hardcoded creds
 
 # Debug flag that should never be True in production
 DEBUG_SQL = True
 
-engine = create_engine(DATABASE_URL, echo=DEBUG_SQL)  # SQL echoing enabled - logs sensitive data
+engine = create_engine(
+    DATABASE_URL, echo=DEBUG_SQL
+)  # SQL echoing enabled - logs sensitive data
 
 # Commented out code that should be removed
 # old_engine = create_engine("sqlite:///./old_hotel.db")
