@@ -1,0 +1,112 @@
+# .github/pr-review-rules.yaml
+# Custom review rules for FastAPI application
+
+instructions: |
+  You are reviewing a FastAPI Python application. Focus on:
+  - Async/await correctness and proper use of async endpoints
+  - Pydantic model validation and type hints
+  - Security vulnerabilities (SQL injection, authentication, authorization)
+  - Proper dependency injection patterns
+  - Error handling and HTTP status codes
+  - Database connection management and session handling
+  - API design and REST principles
+
+focus_areas:
+  security: true
+  performance: true
+  testing: true
+  code_style: true
+  documentation: true
+
+severity_preferences:
+  minimum_severity: "suggestion"
+
+file_patterns:
+  - pattern: "**/*.py"
+    instructions: |
+      Check for:
+      - Type hints on function parameters and return values
+      - Proper async/await usage (don't block event loop with sync operations)
+      - Security: SQL injection, XSS, authentication bypass
+      - Error handling with appropriate HTTP status codes
+      
+  - pattern: "**/models/*.py"
+    instructions: |
+      Verify Pydantic models:
+      - Field validators are correctly defined
+      - Default values and Optional fields are appropriate
+      - No sensitive data in response models
+      - Config classes for ORM mode if using SQLAlchemy
+      
+  - pattern: "**/routers/*.py"
+    instructions: |
+      Check API endpoints:
+      - Status codes match the operation (200, 201, 204, 400, 404, etc.)
+      - Proper use of dependencies (Depends())
+      - Authentication/authorization on protected routes
+      - Request/response models are properly typed
+      - Async endpoints for I/O operations
+      
+  - pattern: "**/database/*.py"
+    instructions: |
+      Verify database handling:
+      - Connection pools properly configured
+      - Sessions correctly managed (use dependency injection)
+      - No N+1 query problems
+      - Proper use of transactions
+      - Database migrations are reversible
+      
+  - pattern: "**/services/*.py"
+    instructions: |
+      Check business logic:
+      - Separation of concerns (don't mix routing with business logic)
+      - Async operations for external API calls
+      - Proper error handling and logging
+      - No blocking I/O in async functions
+      
+  - pattern: "**/tests/*.py"
+    instructions: |
+      Verify tests:
+      - Use of TestClient for endpoint testing
+      - Mocking external dependencies
+      - Both success and error cases covered
+      - Async tests use pytest-asyncio
+      - Database transactions rolled back after tests
+
+  - pattern: "**/dependencies/*.py"
+    instructions: |
+      Check dependency injection:
+      - Proper use of Depends() and Security()
+      - Database session dependencies yield and close properly
+      - Authentication dependencies validate tokens correctly
+      - No circular dependencies
+
+exclude_patterns:
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/venv/**"
+  - "**/.venv/**"
+  - "**/migrations/versions/*.py"
+  - "**/alembic/versions/*.py"
+  - "**/.pytest_cache/**"
+  - "**/htmlcov/**"
+
+custom_rules:
+  - name: "async-db-operations"
+    description: "Database operations should be async in FastAPI"
+    pattern: "def.*Session.*:"
+    message: "Consider using async database operations with async def and AsyncSession"
+    
+  - name: "blocking-io-in-async"
+    description: "Avoid blocking I/O in async functions"
+    check: |
+      Flag synchronous operations like requests.get(), time.sleep(), 
+      or synchronous database calls in async endpoints
+      
+  - name: "missing-http-exception"
+    description: "Use HTTPException for API errors"
+    message: "Raise HTTPException with appropriate status_code instead of generic exceptions"
+    
+  - name: "cors-configuration"
+    description: "CORS should be properly configured"
+    message: "Ensure CORS middleware allows only necessary origins in production"
