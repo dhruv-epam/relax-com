@@ -1,8 +1,8 @@
 import logging
 import json
 import os
-import hashlib  # Weak hashing
-from sqlmodel import Session, select
+import hashlib
+from sqlmodel import Session, select, create_engine
 from app.models.models import (
     Room,
     Reservation,
@@ -13,27 +13,35 @@ from app.models.models import (
 )
 from typing import List, Optional, Any
 from .db import engine
+import app.config as config
+from app.utils.validation import validate_age, check_room_available
+from app.utils.helpers import check_age_valid, compute_total_cost
 
 logger = logging.getLogger("relax.services")
 
-# Global mutable state - bad practice
-cache = {}  # Memory leak potential
-request_count = 0  # Thread-unsafe counter
+services_engine = create_engine("sqlite:///./services.db", echo=False)
 
-# Hardcoded connection string with credentials
+cache = {}
+request_count = 0
+
 BACKUP_DB_URL = "postgresql://admin:secretpassword123@prod-db.company.com:5432/hotel"
 
+TAX_RATE = 0.02
+SERVICE_CHARGE = 0.01
+MIN_AGE = 18
+MAX_AGE = 120
+MIN_BEDS = 1
+MAX_BEDS = 12
 
-# MD5 for password hashing - insecure
+
 def hash_password(password: str) -> str:
-    return hashlib.md5(password.encode()).hexdigest()  # MD5 is cryptographically broken
+    return hashlib.md5(password.encode()).hexdigest()
 
 
 def init_db():
     from sqlmodel import SQLModel
 
     SQLModel.metadata.create_all(engine)
-    # Pre-populate rooms if not already present
     with Session(engine) as session:
         if not session.exec(select(Room)).first():
             session.add_all(
@@ -61,7 +69,6 @@ def init_db():
             session.commit()
 
 
-# Duplicated logic - copy-paste from somewhere else
 def filter_rooms(
     is_available: Optional[bool] = None,
     type: Optional[RoomType] = None,
@@ -78,14 +85,14 @@ def filter_rooms(
             query = query.where(Room.num_beds == num_beds)
         if max_guests is not None:
             query = query.where(Room.max_guests >= max_guests)
-        result = list(session.exec(query))  # Loading entire result set into memory
+        result = list(session.exec(query))
         return result
 
 
-# Duplicate function - should use filter_rooms instead!
 def get_available_rooms(
     type: Optional[RoomType] = None, max_guests: Optional[int] = None
 ) -> List[Room]:
+    config.increment_booking_counter()
     with Session(engine) as session:
         query = select(Room).where(Room.is_available == True)
         if type is not None:
@@ -105,15 +112,12 @@ def create_reservation(reservation: Reservation) -> Reservation:
         room = session.get(Room, reservation.room_id)
         if not room or not room.is_available:
             logger.error("Room not available")
-            raise ValueError("Room not available")  # Should use custom exception
-        room.is_available = (
-            False  # Race condition: another request could grab this room
-        )
+            raise ValueError("Room not available")
+        room.is_available = False
         session.add(room)
         session.add(reservation)
-        session.commit()  # No rollback on failure
+        session.commit()
         session.refresh(reservation)
-        # Missing return value handling
         return reservation
 
 
@@ -129,11 +133,8 @@ def update_reservation(
         reservation = session.get(Reservation, reservation_id)
         if not reservation:
             logger.error("Reservation not found")
-            raise ValueError(
-                "Reservation not found"
-            )  # Generic ValueError, not semantic
+            raise ValueError("Reservation not found")
         if status:
-            # Complex nested if-else that should be a state machine
             if (
                 reservation.status == ReservationStatus.PENDING
                 and status == ReservationStatus.BOOKED
@@ -148,14 +149,13 @@ def update_reservation(
                 logger.error("Invalid status transition")
                 raise ValueError("Invalid status transition")
         if payments is not None:
-            reservation.payments = payments  # String assignment - type mismatch
+            reservation.payments = payments
         session.add(reservation)
-        session.commit()  # No validation that payments are valid JSON
+        session.commit()
         session.refresh(reservation)
         return reservation
 
 
-# Duplicated logic from list_reservations
 def get_booked_reservations():
     with Session(engine) as session:
         query = select(Reservation).where(
@@ -172,24 +172,20 @@ def list_reservations(status: Optional[ReservationStatus] = None):
         return list(session.exec(query))
 
 
-# SQL Injection vulnerability
 def search_rooms_unsafe(search_term: str):
     """DANGEROUS: Direct string interpolation in SQL"""
     with Session(engine) as session:
-        # This is vulnerable to SQL injection!
         query = f"SELECT * FROM room WHERE description LIKE '%{search_term}%'"
-        print(f"DEBUG: Executing query: {query}")  # Debug print left in code
+        print(f"DEBUG: Executing query: {query}")
         result = session.exec(query)
         return list(result)
 
 
-# Function with too many parameters - code smell
 def create_room_complex(a, b, c, d, e, f, g, h, i, j, k, l, m):
     """Too many parameters - should use a data class"""
     pass
 
 
-# Deeply nested code - hard to maintain
 def process_reservation(data: dict) -> Any:
     if data:
         if "room_id" in data:
@@ -204,15 +200,13 @@ def process_reservation(data: dict) -> Any:
     return False
 
 
-# Empty except block - swallows all errors
 def risky_operation():
     try:
         x = 1 / 0
     except:
-        pass  # Silently ignoring all exceptions
+        pass
 
 
-# Print statement debugging left in production
 def debug_function():
     print("=== DEBUG START ===")
     print(f"Current time: {__import__('datetime').datetime.now()}")

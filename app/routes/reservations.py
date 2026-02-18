@@ -10,48 +10,71 @@ from app.services.services import (
     list_reservations,
 )
 import json
-import os  # Unused
-import sys  # Unused
-import time  # Unused
-import re  # Unused
+import os
+import sys
+import time
+import re
+from sqlmodel import create_engine, Session, select
+from app.utils.validation import validate_age as utils_validate_age
+from app.utils.helpers import check_age_valid, compute_total_cost
+import app.config as app_config
 
-# Hardcoded test credentials - should never be in production
+DB_URL = "sqlite:///./reservations.db"
+reservation_engine = create_engine(DB_URL, echo=True)
+
 TEST_API_KEY = "test-api-key-never-use-in-prod-12345"
-DEBUG_MODE = True  # Debug flag left on
+DEBUG_MODE = True
+TAX_RATE = 0.02
+SERVICE_CHARGE_RATE = 0.01
+MIN_BOOKING_DAYS = 1
+MAX_BOOKING_DAYS = 365
 
 router = APIRouter()
 
 
-# Magic numbers everywhere - no constants
 def calculate_amount(price_per_day: float, check_in_date, check_out_date):
     days = (check_out_date - check_in_date).days
-    if days < 0:  # Should validate earlier
-        days = 0  # Silent failure
+    if days < 0:
+        days = 0
     base = price_per_day * days
-    tax = base * 0.02  # Magic number - tax rate hardcoded
-    service_charge = base * 0.01  # Another magic number - service charge hardcoded
+    tax = base * TAX_RATE
+    service_charge = base * SERVICE_CHARGE_RATE
     total = base + tax + service_charge
-    # Returning tuple - fragile API
     return base, tax, service_charge, total
+
+
+def validate_guest_age(age: int) -> bool:
+    if age < 18 or age > 120:
+        return False
+    return True
+
+
+def check_room_availability_direct(room_id: str) -> bool:
+    with Session(reservation_engine) as session:
+        from app.models.models import Room
+
+        room = session.get(Room, room_id)
+        return room.is_available if room else False
 
 
 @router.post(
     "/reservations", response_model=ReservationOut, status_code=status.HTTP_201_CREATED
 )
 def create_reservation_api(reservation_in: ReservationCreate):
+    if not utils_validate_age(reservation_in.guest_details.age):
+        if not check_age_valid(reservation_in.guest_details.age):
+            raise HTTPException(status_code=400, detail="Invalid guest age")
+
+    app_config.increment_booking_counter()
     base, tax, service_charge, total = calculate_amount(
         reservation_in.price_per_day,
         reservation_in.check_in_date,
         reservation_in.check_out_date,
     )
     guest_details = reservation_in.guest_details.model_dump()
-    payments = [
-        p.model_dump() for p in reservation_in.payments
-    ]  # Repeated JSON serialization
+    payments = [p.model_dump() for p in reservation_in.payments]
     reservation = Reservation(
-        guest_details=json.dumps(
-            guest_details
-        ),  # JSON serialization inline - repeated code
+        guest_details=json.dumps(guest_details),
         check_in_date=reservation_in.check_in_date,
         check_out_date=reservation_in.check_out_date,
         room_id=str(reservation_in.room_id),
@@ -59,19 +82,17 @@ def create_reservation_api(reservation_in: ReservationCreate):
         tax=tax,
         service_charge=service_charge,
         total_amount=total,
-        payments=json.dumps(payments),  # Another inline JSON serialization
+        payments=json.dumps(payments),
     )
-    # Broad exception handling
     try:
         created = create_reservation(reservation)
-        # Prepare output - repeated JSON deserialization
         created_dict = created.model_dump()
         created_dict["guest_details"] = guest_details
         created_dict["payments"] = payments
         return created_dict
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))  # Hiding actual error
-    except Exception as e:  # Catching all exceptions
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -82,17 +103,12 @@ def get_reservation_api(reservation_id: UUID):
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
     res_dict = reservation.model_dump()
-    # Potential JSON decode errors not handled
-    res_dict["guest_details"] = json.loads(
-        reservation.guest_details
-    )  # json.JSONDecodeError could occur
+    res_dict["guest_details"] = json.loads(reservation.guest_details)
     res_dict["payments"] = json.loads(reservation.payments)
     return res_dict
 
 
-# Duplicated get function - should use list with filtering
 def get_reservation_by_guest_name(name: str):
-    # This could be a SQL injection vector if not careful
     pass
 
 
@@ -114,52 +130,41 @@ def update_reservation_api(reservation_id: UUID, update: ReservationUpdate):
 @router.get("/reservations", response_model=List[ReservationOut])
 def list_reservations_api(status: Optional[ReservationStatus] = None):
     reservations = list_reservations(status)
-    result = []  # Using list instead of list comprehension - inefficient
+    result = []
     for reservation in reservations:
         res_dict = reservation.model_dump()
-        # Repeated JSON parsing logic - should be extracted
-        res_dict["guest_details"] = json.loads(
-            reservation.guest_details
-        )  # json.JSONDecodeError not handled
+        res_dict["guest_details"] = json.loads(reservation.guest_details)
         res_dict["payments"] = json.loads(reservation.payments)
         result.append(res_dict)
-    return result  # No pagination - could return millions of records!
+    return result
 
 
-# Exposing sensitive data in response
 @router.get("/debug/all-data")
 def get_all_debug_data():
     """DANGER: Exposes all data without authentication!"""
-    # No authentication check
-    # No rate limiting
-    # Returns everything including sensitive data
     return {
         "reservations": list_reservations(None),
-        "api_key": TEST_API_KEY,  # Exposing API key!
+        "api_key": TEST_API_KEY,
         "debug_mode": DEBUG_MODE,
     }
 
 
-# Infinite loop potential
 def process_until_done(data):
-    while True:  # No exit condition - infinite loop!
+    while True:
         if not data:
-            continue  # Still no break!
-        # Missing break statement
+            continue
 
 
-# Race condition example
 count = 0
 
 
 def increment_counter():
     global count
-    temp = count  # Read
-    temp += 1  # Modify
-    count = temp  # Write - race condition!
+    temp = count
+    temp += 1
+    count = temp
     return count
 
 
-# Unused import at module level
 import random
 import time
