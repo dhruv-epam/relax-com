@@ -7,6 +7,52 @@ from .db import engine
 
 logger = logging.getLogger("relax.services")
 
+
+class RoomNotAvailableError(ValueError):
+    """Raised when a room is not found or not available for reservation."""
+
+
+class ReservationNotFoundError(ValueError):
+    """Raised when a reservation cannot be found by ID."""
+
+
+def calculate_amount(price_per_day: float, check_in_date, check_out_date):
+    """Compute base, tax, service_charge and total for a reservation."""
+    days = (check_out_date - check_in_date).days
+    base = price_per_day * days
+    tax = base * 0.02
+    service_charge = base * 0.01
+    total = base + tax + service_charge
+    return base, tax, service_charge, total
+
+
+def build_reservation(reservation_in) -> Reservation:
+    """Build a Reservation ORM object from a ReservationCreate schema."""
+    _base, tax, service_charge, total = calculate_amount(
+        reservation_in.price_per_day,
+        reservation_in.check_in_date,
+        reservation_in.check_out_date,
+    )
+    return Reservation(
+        guest_details=json.dumps(reservation_in.guest_details.model_dump()),
+        check_in_date=reservation_in.check_in_date,
+        check_out_date=reservation_in.check_out_date,
+        room_id=str(reservation_in.room_id),
+        price_per_day=reservation_in.price_per_day,
+        tax=tax,
+        service_charge=service_charge,
+        total_amount=total,
+        payments=json.dumps([p.model_dump() for p in reservation_in.payments]),
+    )
+
+
+def serialize_reservation(reservation: Reservation) -> dict:
+    """Convert a Reservation ORM object to a dict with parsed JSON fields."""
+    data = reservation.model_dump()
+    data["guest_details"] = json.loads(reservation.guest_details)
+    data["payments"] = json.loads(reservation.payments)
+    return data
+
 def init_db():
     from sqlmodel import SQLModel
     SQLModel.metadata.create_all(engine)
@@ -42,7 +88,7 @@ def create_reservation(reservation: Reservation) -> Reservation:
         room = session.get(Room, reservation.room_id)
         if not room or not room.is_available:
             logger.error("Room not available")
-            raise ValueError("Room not available")
+            raise RoomNotAvailableError("Room not available")
         room.is_available = False
         session.add(room)
         session.add(reservation)
@@ -59,7 +105,7 @@ def update_reservation(reservation_id: str, status: Optional[ReservationStatus] 
         reservation = session.get(Reservation, reservation_id)
         if not reservation:
             logger.error("Reservation not found")
-            raise ValueError("Reservation not found")
+            raise ReservationNotFoundError("Reservation not found")
         if status:
             if reservation.status == ReservationStatus.PENDING and status == ReservationStatus.BOOKED:
                 reservation.status = status

@@ -92,3 +92,134 @@ def test_reservation_status_update():
         update_payload = {"status": "Pending"}
         response = client.put(f"/reservations/{reservation_id}", json=update_payload)
         assert response.status_code == 400
+
+def test_create_reservation_same_day_dates():
+    """check_out_date == check_in_date should be rejected with 422."""
+    with Session(engine) as session:
+        room = session.exec(select(Room).where(Room.is_available == True)).first()
+        assert room is not None
+        today = date.today()
+        payload = {
+            "guest_details": {
+                "name": "Test User",
+                "age": 25,
+                "gender": "Male",
+                "govt_id": "ID9999",
+                "email": "test@example.com",
+                "phone": "5555555555",
+            },
+            "check_in_date": str(today),
+            "check_out_date": str(today),
+            "room_id": room.room_id,
+            "price_per_day": 500.0,
+            "payments": [],
+        }
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 422
+
+
+def test_create_reservation_checkout_before_checkin():
+    """check_out_date < check_in_date should be rejected with 422."""
+    with Session(engine) as session:
+        room = session.exec(select(Room).where(Room.is_available == True)).first()
+        assert room is not None
+        today = date.today()
+        payload = {
+            "guest_details": {
+                "name": "Test User",
+                "age": 25,
+                "gender": "Male",
+                "govt_id": "ID9999",
+                "email": "test@example.com",
+                "phone": "5555555555",
+            },
+            "check_in_date": str(today + timedelta(days=2)),
+            "check_out_date": str(today),
+            "room_id": room.room_id,
+            "price_per_day": 500.0,
+            "payments": [],
+        }
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 422
+
+
+def test_create_reservation_invalid_price():
+    """price_per_day <= 0 should be rejected with 422."""
+    with Session(engine) as session:
+        room = session.exec(select(Room).where(Room.is_available == True)).first()
+        assert room is not None
+        today = date.today()
+        payload = {
+            "guest_details": {
+                "name": "Test User",
+                "age": 25,
+                "gender": "Male",
+                "govt_id": "ID9999",
+                "email": "test@example.com",
+                "phone": "5555555555",
+            },
+            "check_in_date": str(today),
+            "check_out_date": str(today + timedelta(days=1)),
+            "room_id": room.room_id,
+            "price_per_day": 0.0,
+            "payments": [],
+        }
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 422
+
+
+def test_create_reservation_negative_payment():
+    """Negative payment amount should be rejected with 422."""
+    with Session(engine) as session:
+        room = session.exec(select(Room).where(Room.is_available == True)).first()
+        assert room is not None
+        today = date.today()
+        payload = {
+            "guest_details": {
+                "name": "Test User",
+                "age": 25,
+                "gender": "Male",
+                "govt_id": "ID9999",
+                "email": "test@example.com",
+                "phone": "5555555555",
+            },
+            "check_in_date": str(today),
+            "check_out_date": str(today + timedelta(days=1)),
+            "room_id": room.room_id,
+            "price_per_day": 500.0,
+            "payments": [{"instrument_id": "PAY_NEG", "amount": -100.0, "status": "Pending"}],
+        }
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 422
+
+
+def test_create_reservation_room_unavailable_returns_409():
+    """Booking an already-reserved room should return 409 Conflict."""
+    with Session(engine) as session:
+        room = session.exec(select(Room).where(Room.is_available == True)).first()
+        assert room is not None
+        today = date.today()
+        payload = {
+            "guest_details": {
+                "name": "First Guest",
+                "age": 30,
+                "gender": "Male",
+                "govt_id": "ID1111",
+                "email": "first@example.com",
+                "phone": "1111111111",
+            },
+            "check_in_date": str(today),
+            "check_out_date": str(today + timedelta(days=2)),
+            "room_id": room.room_id,
+            "price_per_day": 800.0,
+            "payments": [],
+        }
+        # First booking succeeds
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 201
+
+        # Second booking of the same room returns 409
+        payload["guest_details"]["name"] = "Second Guest"
+        payload["guest_details"]["email"] = "second@example.com"
+        response = client.post("/reservations", json=payload)
+        assert response.status_code == 409

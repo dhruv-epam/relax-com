@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import List, Optional
 from uuid import UUID
 from datetime import date
@@ -28,7 +28,7 @@ class GuestDetailsIn(BaseModel):
 
 class PaymentEntryIn(BaseModel):
     instrument_id: str
-    amount: float
+    amount: float = Field(ge=0, description="Payment amount must be non-negative")
     status: PaymentStatus
 
 class ReservationCreate(BaseModel):
@@ -36,8 +36,14 @@ class ReservationCreate(BaseModel):
     check_in_date: date
     check_out_date: date
     room_id: UUID
-    price_per_day: float
+    price_per_day: float = Field(gt=0, description="Price per day must be greater than 0")
     payments: List[PaymentEntryIn]
+
+    @model_validator(mode="after")
+    def check_dates(self) -> "ReservationCreate":
+        if self.check_out_date <= self.check_in_date:
+            raise ValueError("check_out_date must be strictly after check_in_date (minimum 1 night)")
+        return self
 
 class ReservationUpdate(BaseModel):
     status: Optional[ReservationStatus] = None
